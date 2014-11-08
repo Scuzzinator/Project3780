@@ -43,12 +43,13 @@ int main()
       
       std::cout << "Type Something (q or Q to quit): ";
       std::cin >> s;
-      send_data.msg_pl = s;
+      
             
-      if ((send_data.msg_pl == "q") || (send_data.msg_pl == "Q"))
+      if ((s == "q") || (s == "Q"))
 	 break;
       
       else {
+	 strcpy(send_data.msg_pl,s.c_str());
 	 //pVoid = &send_data;
 	 std::cout << sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
 			     (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) << std::endl;

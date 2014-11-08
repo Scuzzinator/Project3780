@@ -84,7 +84,7 @@ int main()
       send_data->msg_t = (msg_type)0;
       strcpy(send_data->msg_src, "kdkdkdkdkd");
       strcpy(send_data->msg_dest, "sewseseses");*/
-      send_data.msg_pl = "No one on that role.";
+      strcpy(send_data.msg_pl,"No one on that role.");
       std::cout << send_data.msg_pl << std::endl;
       // pVoid = &send_data;
       sendto(sock,(const char *)&send_data,sizeof(_msg),0,(struct sockaddr *)&client_addr,sizeof(struct sockaddr));

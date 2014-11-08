@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
        exit(0);
     }
     portno = atoi(argv[2]);
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) 
         error("ERROR opening socket");
     server = gethostbyname(argv[1]);
