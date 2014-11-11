@@ -12,26 +12,26 @@
 
 int main()
 {
-   int sock;
-   int bytes_read;
-   socklen_t addr_len;
-   //_msg *recv_data = new _msg, *send_data = new _msg;
-   _msg recv_data, send_data;
-   void *pVoid;
+   int SOCKET_PORT = 5000;    //socket port number
+   int sock;                  //socket
+   int bytes_read;            //length of received message
+   socklen_t addr_len;        //length of client address
+   _msg recv_data, send_data; //message structures for sent/receive data
+   //addresses for client and server
    struct sockaddr_in server_addr , client_addr;
    
-   
+   //Create Socket
    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
       perror("Socket");
       exit(1);
    }
-   
+   //Server address properties
    server_addr.sin_family = AF_INET;
-   server_addr.sin_port = htons(5000);
+   server_addr.sin_port = htons(SOCKET_PORT);      //Socket number
    server_addr.sin_addr.s_addr = INADDR_ANY;
    bzero(&(server_addr.sin_zero),8);
    
-   
+   //Bind socket of server
    if (bind(sock,(struct sockaddr *)&server_addr,
             sizeof(struct sockaddr)) == -1)
    {
@@ -40,59 +40,41 @@ int main()
    }
    
    addr_len = sizeof(struct sockaddr);
+
+
+   //Getting server hostname
+   char _hostname[255];
+   if(gethostname(_hostname, sizeof(_hostname)) == 0)
+      printf("\nServer Hostname: %s\n", _hostname);
+   else
+      perror("gethostname");
+	 
+
    
-   printf("\nUDPServer Waiting for client on port 5000");
+   printf("\nUDP Server Waiting for client on port %i\n", SOCKET_PORT);
    fflush(stdout);
-   
-   /* char a[20][10],d[20][10];
-   strcpy(a[0],"A");
-   strcpy(a[1],"B");
-   strcpy(a[2],"C");
-   strcpy(a[3],"D");
-   strcpy(d[0],"123");
-   strcpy(d[1],"124");
-   strcpy(d[2],"100");
-   strcpy(d[3],"99"); */
    
    while (1)
    {
-      //pVoid = &recv_data;
+      //receive data from client
       bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
                             (struct sockaddr *)&client_addr, &addr_len);
       
-      std::cout << "\nreceived teh data\n";
-      // recv_data[bytes_read] = '\0';
-      
-      // printf("\n(%s , %d) said : ",inet_ntoa(client_addr.sin_addr),
-//	     ntohs(client_addr.sin_port));
-      // std::cout << recv_data.msg_pl << "\n";
-      printf("\nSEND : ");
-      // gets(send_data);
-      /*
-      int p = 0;
-      for(int i=0;i<4;i++)
-      {
-	 if(strcmp(recv_data,d[i]) == 0)
-	 {
-	    strcpy(send_data,a[i]);p=1;
-	 }
-      }
-      if(p == 0)
-	 strcpy(send_data,"No one on that role.");
-      */
+      printf("(%s , %d) said :\n",inet_ntoa(client_addr.sin_addr),
+	     ntohs(client_addr.sin_port));
+      print_msg(recv_data);
+      printf("\nSENDING : ");
       /*send_data->seq_no = 0;
       send_data->msg_t = (msg_type)0;
       strcpy(send_data->msg_src, "kdkdkdkdkd");
       strcpy(send_data->msg_dest, "sewseseses");*/
-      strcpy(send_data.msg_pl,"No one on that role.");
-      std::cout << send_data.msg_pl << std::endl;
-      // pVoid = &send_data;
+      strcpy(send_data.msg_pl,etochar(recv_data.msg_t));
+      std::cout << send_data.msg_pl << "\n\n";
+      //Send data to client
       sendto(sock,(const char *)&send_data,sizeof(_msg),0,(struct sockaddr *)&client_addr,sizeof(struct sockaddr));
       
       fflush(stdout);
       
    }
-   //delete send_data;
-   //delete recv_data;
    return 0;
 }
