@@ -8,11 +8,12 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "message.h"
 #include <iostream>
 #include <sstream>
 
-void format_msg(_msg &m, const int c, std::string &s)
+void format_msg(_msg &m, const char* cl_id, const int c, std::string &s)
 {
    std::stringstream sInput(s);
    char t[4];
@@ -20,7 +21,7 @@ void format_msg(_msg &m, const int c, std::string &s)
    m.seq_no = c;
    sInput >> t;
    m.msg_t = read_type(t);
-   sInput >> m.msg_src;
+   strcpy(m.msg_src, cl_id);
    sInput >> m.msg_dest;
    sInput.ignore();
    getline(sInput, stemp);
@@ -34,9 +35,13 @@ int main()
    struct sockaddr_in server_addr;
    struct hostent *host;
    _msg send_data, recv_data;
-   std::string s;
-   
-   host= (struct hostent *) gethostbyname((char *)"17prius");
+   std::string s, server_name;
+   char client_id[11];
+
+   server_name = "17prius";
+//   std::cout << "Please enter the server hostname: ";
+//   std::cin >> server_name;
+   host= (struct hostent *) gethostbyname(server_name.c_str());
    
    //create socket
    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -50,17 +55,21 @@ int main()
    server_addr.sin_addr = *((struct in_addr *)host->h_addr);
    bzero(&(server_addr.sin_zero),8);
    sin_size = sizeof(struct sockaddr);
+
+   std::cout << "Please enter a ten digit client ID:";
+   std::cin >> client_id;
+   std::cin.ignore(INT_MAX, '\n'); //Flush the input buffer
    
    while (1)
    {
       
-      std::cout << "\nSend a message.\nFormat: <type> <source> <destination> <message>\n(q or Q to quit): ";
+      std::cout << "\nSend a message.\nFormat: <type> <dest-ID> <message>\n(q or Q to quit): ";
       getline(std::cin, s);
       //If input is q, quit the client, otherwise format and send data
       if ((s.at(0) == 'q') || (s.at(0) == 'Q'))
 	 break;
       else {
-	 format_msg(send_data, ++msg_counter, s);
+	 format_msg(send_data, client_id, ++msg_counter, s);
 	 std::cout << "Sending: ";
 	 print_msg(send_data);
 	 sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
@@ -69,6 +78,7 @@ int main()
 	 
       }
       bytes_recv = recvfrom(sock,&recv_data,sizeof(_msg),0,(struct sockaddr *)&server_addr,&sin_size);
-      std::cout << "Received: " << recv_data.msg_pl << std::endl;
+      std::cout << "Received: ";
+      print_msg(recv_data);
    }
 }

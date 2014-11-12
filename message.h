@@ -3,8 +3,8 @@ enum msg_type {SEND, GET, ACK};
 struct _msg {
    int seq_no;
    msg_type msg_t;
-   char msg_src[10], msg_dest[10];
-   char msg_pl[72];
+   char msg_src[11], msg_dest[11];
+   char msg_pl[71];
 };
 msg_type read_type(const char *s) {
    if(strcmp(s,"SEND") == 0)
