@@ -38,7 +38,7 @@ int main()
    std::string s, server_name;
    char client_id[11];
 
-   server_name = "17prius";
+   server_name = "17civic";
 //   std::cout << "Please enter the server hostname: ";
 //   std::cin >> server_name;
    host= (struct hostent *) gethostbyname(server_name.c_str());
@@ -70,15 +70,32 @@ int main()
 	 break;
       else {
 	 format_msg(send_data, client_id, ++msg_counter, s);
-	 std::cout << "Sending: ";
-	 print_msg(send_data);
-	 sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
-		(struct sockaddr *)&server_addr,
-		sizeof(struct sockaddr));
+	 if(send_data.msg_t == (enum msg_type)1) {
+	    sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+		   (struct sockaddr *)&server_addr,
+		   sizeof(struct sockaddr));
+	    recvfrom(sock,&recv_data,sizeof(_msg),0,
+		     (struct sockaddr *)&server_addr,&sin_size);
+	    int i;
+	    sscanf(recv_data.msg_pl, "%d", &i);
+	    send_data.msg_t = (enum msg_type)2;
+	    sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+		   (struct sockaddr *)&server_addr,
+		   sizeof(struct sockaddr));
+	    for(int j = 0; j < i; j++) {
+	       recvfrom(sock,&recv_data,sizeof(_msg),0,
+			(struct sockaddr *)&server_addr,&sin_size);
+	       std::cout << "Received: ";
+	       print_msg(recv_data);
+	       sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+		   (struct sockaddr *)&server_addr,
+		   sizeof(struct sockaddr));
+	    }
+	 }
+	 else sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+		     (struct sockaddr *)&server_addr,
+		     sizeof(struct sockaddr));
 	 
       }
-      bytes_recv = recvfrom(sock,&recv_data,sizeof(_msg),0,(struct sockaddr *)&server_addr,&sin_size);
-      std::cout << "Received: ";
-      print_msg(recv_data);
    }
 }
