@@ -38,9 +38,8 @@ int main()
    std::string s, server_name;
    char client_id[11];
 
-   server_name = "17civic";
-//   std::cout << "Please enter the server hostname: ";
-//   std::cin >> server_name;
+   std::cout << "Please enter the server hostname: ";
+   std::cin >> server_name;
    host= (struct hostent *) gethostbyname(server_name.c_str());
    
    //create socket

@@ -67,8 +67,12 @@ int main()
       //receive data from client
       bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
                             (struct sockaddr *)&client_addr, &addr_len);
+
+      if(pid < 0)
+	 pid = fork();
+      
       if(bytes_read > 0) { //Fork process, and let child handle it
-//	 if(fork() == 0) {
+	 if(pid == 0) {
 	    switch(recv_data.msg_t) {
 	       case SEND:
 		  msgbuffer[(std::string)recv_data.msg_dest].push(recv_data);
@@ -107,6 +111,8 @@ int main()
 		  }
 	    }
 	 }
+      }
+   
 /*
       printf("(%s , %d) said :\n",inet_ntoa(client_addr.sin_addr),
 	     ntohs(client_addr.sin_port));
