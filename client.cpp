@@ -13,6 +13,8 @@
 #include <iostream>
 #include <sstream>
 
+#define PORT 5000
+
 void format_msg(_msg &m, const char* cl_id, const int c, std::string &s)
 {
    std::stringstream sInput(s);
@@ -50,7 +52,7 @@ int main()
    }
    
    server_addr.sin_family = AF_INET;
-   server_addr.sin_port = htons(5000);
+   server_addr.sin_port = htons(PORT);
    server_addr.sin_addr = *((struct in_addr *)host->h_addr);
    bzero(&(server_addr.sin_zero),8);
    sin_size = sizeof(struct sockaddr);
@@ -58,6 +60,12 @@ int main()
    std::cout << "Please enter a ten digit client ID:";
    std::cin >> client_id;
    std::cin.ignore(INT_MAX, '\n'); //Flush the input buffer
+
+   /*
+     Missing code here:
+     The client needs to make a CONN message to the server here so the 
+     servers can identify the client and add it to the client table
+    */
    
    while (1)
    {
@@ -65,9 +73,14 @@ int main()
       std::cout << "\nSend a message.\nFormat: <type> <dest-ID> <message>\n(q or Q to quit): ";
       getline(std::cin, s);
       //If input is q, quit the client, otherwise format and send data
-      if ((s.at(0) == 'q') || (s.at(0) == 'Q'))
+      if ((s.at(0) == 'q') || (s.at(0) == 'Q')) {
+	/*
+	  Missing code here:
+	  The client needs to make a DCON message to the server here so the
+	  servers can remove the client from the table.
+	 */
 	 break;
-      else {
+      } else {
 	 format_msg(send_data, client_id, ++msg_counter, s);
 	 if(send_data.msg_t == (enum msg_type)1) {
 	    sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
@@ -87,8 +100,8 @@ int main()
 	       std::cout << "Received: ";
 	       print_msg(recv_data);
 	       sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
-		   (struct sockaddr *)&server_addr,
-		   sizeof(struct sockaddr));
+		      (struct sockaddr *)&server_addr,
+		      sizeof(struct sockaddr));
 	    }
 	 }
 	 else sendto(sock,(const char *)&send_data, sizeof(_msg), 0,

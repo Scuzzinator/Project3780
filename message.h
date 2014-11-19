@@ -1,5 +1,5 @@
 #include <string.h>
-enum msg_type {SEND, GET, ACK};
+enum msg_type {SEND, GET, ACK, CONN, DCON};
 struct _msg {
    int seq_no;
    msg_type msg_t;
@@ -20,6 +20,10 @@ msg_type read_type(const char *s) {
       return GET;
    else if(strcmp(s,"ACK") == 0)
       return ACK;
+   else if(strcmp(s,"CONN") == 0)
+      return CONN;
+   else if(strcmp(s,"DCON") == 0)
+      return DCON;
 }
 char *etochar(msg_type &m) {
    switch(m) {
@@ -29,6 +33,10 @@ char *etochar(msg_type &m) {
 	 return (char*)"GET";
       case ACK:
 	 return (char*)"ACK";
+      case CONN:
+	 return (char*)"CONN";
+      case DCON:
+	 return (char*)"DCON";
    }
    return (char*)"NONE";
 }
