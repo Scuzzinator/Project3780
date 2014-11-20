@@ -23,6 +23,17 @@ std::string servers[] = {"17jetta","17civic","17camaro","17beetle","17vfr"};
 
 struct sockaddr_in servAddr[5];
 
+int getClientIndex(sockaddr_in& client_addr)
+{
+   char t_hostname[128], t_serv[20];
+   getnameinfo(&client_addr, sizeof client_addr, t_hostname, sizeof t_hostname,
+	      t_serv, sizeof t_serv, NI_NOFQDN);
+   for(int i = 0; i < 5; i++)
+      if(strcmp(t_hostname, servers[i].c_str()) == 0)
+         return i;
+   return -1;
+}
+
 int main()
 {
    int sock;                  //socket
@@ -60,7 +71,7 @@ int main()
       loopindex = (serv_index + i) % 5;
       if(abs(i) == 2){
 	 host = (struct hostent *) gethostbyname(
-	    servers[(loopindex + 1) % 5].c_str());
+		servers[(loopindex - (i / 2)) % 5].c_str());
       } else {
 	 host = (struct hostent *) gethostbyname(servers[loopindex].c_str());
       }
@@ -174,10 +185,12 @@ int main()
 		 If message is straight from client, add client to table
 		 using the current server's index, then format message
 		 to send to server as seq_no = TTL = 1, type = CONN,
-		 src = recv_data.msg_src, dest = serv_index
+		 src = client ID = recv_data.msg_src, dest = serv_index
 		 
 		 else add client to table using recv_data.msg_dest; if
-		 --TTL (seq_no) == 0, don't send the message
+		 TTL (seq_no) == 0, don't send the message, otherwise 
+		 decrement TTL, and send to the server that you did not
+		 receive the message from.
 	       */
 	       case CONN:
 		  msg_copy(send_data, recv_data);
@@ -186,7 +199,7 @@ int main()
 		     send_data.seq_no = 1; //TTL
 		     tempchar.flush();
 		     tempchar << serv_index;
-		     strcpy(send_data.msg_pl, tempchar.str().c_str());
+		     strcpy(send_data.msg_dest, tempchar.str().c_str());
 		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
 			    (struct sockaddr *)&servAddr[(serv_index + 1) % 5],
 			    sizeof (struct sockaddr));
@@ -194,13 +207,19 @@ int main()
 			    (struct sockaddr *)&servAddr[(serv_index - 1) % 5],
 			    sizeof (struct sockaddr));
 		  } else {
-		     sscanf(recv_data.msg_src, "%d", &tempindex);
+		     sscanf(recv_data.msg_dest, "%d", &tempindex);
 		     clientTable[(std::string)recv_data.msg_src] = tempindex;
 		     if(recv_data.seq_no) {
 			--send_data.seq_no;
-			//Only got to here, need moar code!
-			//send the message on to the node that has yet to
-			//receive it in this "line" of nodes
+			if(getClientIndex(client_addr) == 
+			   ((serv_index + 1) % 5))
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			     (struct sockaddr *)&servAddr[(serv_index - 1) % 5],
+			     sizeof (struct sockaddr));
+			else
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			     (struct sockaddr *)&servAddr[(serv_index + 1) % 5],
+			     sizeof (struct sockaddr));
 		     }
 		  }
 		  break;
