@@ -57,9 +57,11 @@ int main()
    struct sockaddr_in server_addr , client_addr;
    pid_t pid; //process ID for fork
    std::map<std::string,std::queue<_msg> > msgbuffer;
+   std::map<std::string,std::queue<_msg> >::iterator msgbuffit;
    std::map<std::string,int> clientTable;
+   std::map<std::string,int>::iterator tableit;
    int loopindex, serv_index;
-   char hostname[128] = "\0";
+   char hostname[128];
    struct hostent *host;
    
    //Determine server and index value in servers
@@ -76,7 +78,6 @@ int main()
       }
    if(serv_index == -1) {
       std::cout << "Hostname is not in list\n";
-      perror("Hostname Not in List");
       exit(1);
    }
    
@@ -137,20 +138,34 @@ int main()
 	    //Deal with message based on enum type
 	    std::ostringstream tempchar;
 	    int tempindex;
+	    std::string tempstr;
 	    switch(recv_data.msg_t) {
 	      /*
 		Send:
 		Server should check the client table to see where to send
 		the message. If the client table says the current server
-		is directly connected to the client, it should keep the 
-		message in the map.
-
-		Status: Unfinished
-		Currently only saves to itself, and does not check the 
-		client table if it should be sending on the message.
+		is directly connected to the client, OR if the ID does not
+		exist in the table at all, it should keep the message in
+		the map. If the client table is in the map but the index
+		ID is not the same as the current server, then send on the
+		message using the servAddr value at the index.
 	       */
 	       case SEND:
-		  msgbuffer[(std::string)recv_data.msg_dest].push(recv_data);
+		  std::cout << "Received a message\n";
+		  tableit = clientTable.find((std::string)recv_data.msg_dest);
+		  if(tableit == clientTable.end() ||
+		     tableit->second == serv_index) {
+		     std::cout << "storing message\n";
+		     msgbuffer[(std::string)recv_data.msg_dest].push(recv_data);
+		  } else {
+		     std::cout << "Sending on the message\n";
+		     std::cout << "Server index to send: "
+			       << tableit->second << "\n";
+		     msg_copy(send_data, recv_data);
+		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			    (struct sockaddr *)&servAddr[tableit->second],
+			    sizeof (struct sockaddr));
+		  }
 		  break;
 	      /*
 		Get:
@@ -164,33 +179,43 @@ int main()
 	       */
 	       case GET:
 		  tempchar.flush();
-		  tempchar << msgbuffer[(std::string)recv_data.msg_src].size();
-		  strcpy(send_data.msg_pl, tempchar.str().c_str());
-		  sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			 (struct sockaddr *)&client_addr,
-			 sizeof (struct sockaddr));
-		  //We assume everything works properly
-		  //loop send the data that exists in the queue
-		  //while waiting for ack
-		  bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
-					(struct sockaddr *)&client_addr,
-					&addr_len);
-		  if(bytes_read > 0 && recv_data.msg_t == (enum msg_type)2) {
-		     std::string recvsrc(recv_data.msg_src);
-		     while(msgbuffer[recvsrc].size() > 0) {
-			//send front
-			msg_copy(send_data,
-				 msgbuffer[recvsrc].front());
-			sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			       (struct sockaddr *)&client_addr,
-			       sizeof (struct sockaddr));
-			//recv ack and pop queue
-			bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
-					      (struct sockaddr *)&client_addr,
-					      &addr_len);
-			if(bytes_read > 0
-			   && recv_data.msg_t == (enum msg_type)2)
-			   msgbuffer[recvsrc].pop();
+		  if(msgbuffer.find((std::string)recv_data.msg_src) ==
+		     msgbuffer.end()) {
+		     tempstr = "GET " + (std::string)recv_data.msg_src
+			+ " NULL";
+		     format_msg(send_data, recv_data.msg_dest, 0, tempstr);
+		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			    (struct sockaddr *)&client_addr,
+			    sizeof (struct sockaddr));
+		  } else {
+		     tempchar << msgbuffer[(std::string)recv_data.msg_src]
+			.size();
+		     strcpy(send_data.msg_pl, tempchar.str().c_str());
+		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			    (struct sockaddr *)&client_addr,
+			    sizeof (struct sockaddr));
+		     //loop send the data that exists in the queue
+		     //while waiting for ack
+		     bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
+					   (struct sockaddr *)&client_addr,
+					   &addr_len);
+		     if(bytes_read > 0 && recv_data.msg_t == (enum msg_type)2) {
+			std::string recvsrc(recv_data.msg_src);
+			while(msgbuffer[recvsrc].size() > 0) {
+			   //send front
+			   msg_copy(send_data,
+				    msgbuffer[recvsrc].front());
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+				  (struct sockaddr *)&client_addr,
+				  sizeof (struct sockaddr));
+			   //recv ack and pop queue
+			   bytes_read = recvfrom(sock,&recv_data,sizeof(_msg),0,
+						(struct sockaddr *)&client_addr,
+						 &addr_len);
+			   if(bytes_read > 0
+			      && recv_data.msg_t == (enum msg_type)2)
+			      msgbuffer[recvsrc].pop();
+			}
 		     }
 		  }
 		  break;
@@ -205,12 +230,14 @@ int main()
 		 TTL (seq_no) == 0, don't send the message, otherwise 
 		 decrement TTL, and send to the server that you did not
 		 receive the message from.
+		 Afterwards, check to see if the client ID exists in the
+		 msgbuffer map. If it exists, then loop send a la get
+		 these messages to the server the client exists on.
 	       */
 	       case CONN:
-		  std::cout << "Received connection\n";
+		  std::cout << "\nReceived connection\n";
 		  msg_copy(send_data, recv_data);
 		  if(strcmp(recv_data.msg_dest, "NULL") == 0) {
-		     std::cout << "I am the first server\n";
 		     clientTable[(std::string)recv_data.msg_src] = serv_index;
 		     std::cout << "Added to client table\n"
 			       << "Updated Table:\n";
@@ -228,7 +255,6 @@ int main()
 			       modfive(serv_index - 1)],
 			    sizeof (struct sockaddr));
 		  } else {
-		     std::cout << "I am not the first server\n";
 		     sscanf(recv_data.msg_dest, "%d", &tempindex);
 		     clientTable[(std::string)recv_data.msg_src] = tempindex;
 		     std::cout << "Added to client table\n"
@@ -248,6 +274,17 @@ int main()
 				     modfive(serv_index + 1)],
 				  sizeof (struct sockaddr));
 		     }
+		     msgbuffit = msgbuffer.find((std::string)recv_data.msg_src);
+		     if(msgbuffit != msgbuffer.end()) {
+			while(msgbuffit->second.size() > 0) {
+			   msg_copy(send_data,
+				    msgbuffit->second.front());
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+				  (struct sockaddr *)&client_addr,
+				  sizeof (struct sockaddr));
+			   msgbuffit->second.pop();
+			}
+		     }
 		  }
 		  break;
 	      /*
@@ -255,20 +292,12 @@ int main()
 		Very similar to the connect case, but each node removes
 		the client from the client list, and then passes the message
 		on to remove the client in other servers.
-
-		One extra thing here different then the connection case,
-		we need to decide what to do with any messages that were
-		meant for the client before they logged off. Should we just
-		keep them? Either we can remove all available messages from 
-		the buffer of the server that was connected with the client,
-		or we can keep the messages and then make an extra check on
-		any CONN messages to have the server check its buffer for a
-		matching ID of the new connected client, and transfer the 
-		messages to the server the client is connected to for the
-		next time they make a get request.
 	       */
 	       case DCON:
+		  std::cout << "\nDeleting client from table\n";
 		  clientTable.erase((std::string)recv_data.msg_src);
+		  std::cout << "Updated Client table:\n";
+		  printTable(clientTable);
 		  msg_copy(send_data, recv_data);
 		  if(strcmp(recv_data.msg_dest, "NULL") == 0) {
 		     send_data.seq_no = 1; //TTL
@@ -303,7 +332,6 @@ int main()
 	    }
 	 }
       }
-      fflush(stdout);
    }
    return 0;
 }

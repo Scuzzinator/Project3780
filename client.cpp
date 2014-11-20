@@ -15,21 +15,6 @@
 
 #define PORT 5000
 
-void format_msg(_msg &m, const char* cl_id, const int c, std::string &s)
-{
-   std::stringstream sInput(s);
-   char t[4];
-   std::string stemp;
-   m.seq_no = c;
-   sInput >> t;
-   m.msg_t = read_type(t);
-   strcpy(m.msg_src, cl_id);
-   sInput >> m.msg_dest;
-   sInput.ignore();
-   getline(sInput, stemp);
-   strcpy(m.msg_pl, stemp.c_str());
-}
-
 int main()
 {
    int sock,bytes_recv, msg_counter = 0;
@@ -61,11 +46,7 @@ int main()
    std::cin >> client_id;
    std::cin.ignore(INT_MAX, '\n'); //Flush the input buffer
 
-   /*
-     Missing code here:
-     The client needs to make a CONN message to the server here so the 
-     servers can identify the client and add it to the client table
-   */
+   //Send a CONN message to the server notifying you connect
    std::string conndcon = "CONN NULL Blank";
    format_msg(send_data, client_id, msg_counter, conndcon);
    sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
@@ -79,11 +60,12 @@ int main()
       getline(std::cin, s);
       //If input is q, quit the client, otherwise format and send data
       if ((s.at(0) == 'q') || (s.at(0) == 'Q')) {
-	/*
-	  Missing code here:
-	  The client needs to make a DCON message to the server here so the
-	  servers can remove the client from the table.
-	 */
+	 //Send a DCON message to the server notifying you disconnect
+	 conndcon = "DCON NULL Blank";
+	 format_msg(send_data, client_id, msg_counter, conndcon);
+	 sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+		(struct sockaddr *)&server_addr,
+		sizeof(struct sockaddr));
 	 break;
       } else {
 	 format_msg(send_data, client_id, ++msg_counter, s);
@@ -93,20 +75,24 @@ int main()
 		   sizeof(struct sockaddr));
 	    recvfrom(sock,&recv_data,sizeof(_msg),0,
 		     (struct sockaddr *)&server_addr,&sin_size);
-	    int i;
-	    sscanf(recv_data.msg_pl, "%d", &i);
-	    send_data.msg_t = (enum msg_type)2;
-	    sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
-		   (struct sockaddr *)&server_addr,
-		   sizeof(struct sockaddr));
-	    for(int j = 0; j < i; j++) {
-	       recvfrom(sock,&recv_data,sizeof(_msg),0,
-			(struct sockaddr *)&server_addr,&sin_size);
-	       std::cout << "Received: ";
-	       print_msg(recv_data);
+	    if(strcmp(recv_data.msg_pl, "NULL") == 0) {
+	       std::cout << "Received: No new messages on server.\n";
+	    } else {
+	       int i;
+	       sscanf(recv_data.msg_pl, "%d", &i);
+	       send_data.msg_t = (enum msg_type)2;
 	       sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
 		      (struct sockaddr *)&server_addr,
 		      sizeof(struct sockaddr));
+	       for(int j = 0; j < i; j++) {
+		  recvfrom(sock,&recv_data,sizeof(_msg),0,
+			   (struct sockaddr *)&server_addr,&sin_size);
+		  std::cout << "Received: ";
+		  print_msg(recv_data);
+		  sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+			 (struct sockaddr *)&server_addr,
+			 sizeof(struct sockaddr));
+	       }
 	    }
 	 }
 	 else sendto(sock,(const char *)&send_data, sizeof(_msg), 0,

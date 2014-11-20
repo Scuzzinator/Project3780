@@ -1,4 +1,7 @@
 #include <string.h>
+#include <string>
+#include <iostream>
+#include <sstream>
 enum msg_type {SEND, GET, ACK, CONN, DCON};
 struct _msg {
    int seq_no;
@@ -39,6 +42,20 @@ char *etochar(msg_type &m) {
 	 return (char*)"DCON";
    }
    return (char*)"NONE";
+}
+void format_msg(_msg &m, const char* cl_id, const int c, std::string &s)
+{
+   std::stringstream sInput(s);
+   char t[4];
+   std::string stemp;
+   m.seq_no = c;
+   sInput >> t;
+   m.msg_t = read_type(t);
+   strcpy(m.msg_src, cl_id);
+   sInput >> m.msg_dest;
+   sInput.ignore();
+   getline(sInput, stemp);
+   strcpy(m.msg_pl, stemp.c_str());
 }
 void print_msg(_msg &m) {
    printf("%i %s %s %s %s\n", m.seq_no, etochar(m.msg_t), m.msg_src,
