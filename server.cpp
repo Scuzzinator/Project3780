@@ -19,19 +19,32 @@
 
 #define PORT 5000
 
-std::string servers[] = {"17jetta","17civic","17camaro","17beetle","17vfr"};
+std::string servers[] = {"17sam","17lorne","17camaro","17beetle","17vfr"};
 
 struct sockaddr_in servAddr[5];
+
+//Because apparently computers think -1 % 5 = -1 instead of 4
+int modfive(int p) {
+   return p % 5 + (p % 5 < 0 ? 5 : 0);
+}
 
 int getClientIndex(sockaddr_in& client_addr)
 {
    char t_hostname[128], t_serv[20];
-   getnameinfo(&client_addr, sizeof client_addr, t_hostname, sizeof t_hostname,
+   getnameinfo((struct sockaddr*)&client_addr, sizeof client_addr, t_hostname, sizeof t_hostname,
 	      t_serv, sizeof t_serv, NI_NOFQDN);
    for(int i = 0; i < 5; i++)
       if(strcmp(t_hostname, servers[i].c_str()) == 0)
          return i;
    return -1;
+}
+
+void printTable(std::map<std::string,int> clients)
+{
+   std::cout << "Client ID  : Server Index\n";
+   for(std::map<std::string,int>::iterator it=clients.begin();
+       it != clients.end(); ++it)
+      std::cout << it->first << " : " << it->second << "\n";
 }
 
 int main()
@@ -46,14 +59,15 @@ int main()
    std::map<std::string,std::queue<_msg> > msgbuffer;
    std::map<std::string,int> clientTable;
    int loopindex, serv_index;
-   char hostname[128];
+   char hostname[128] = "\0";
    struct hostent *host;
-
+   
    //Determine server and index value in servers
    if(gethostname(hostname, sizeof(hostname)) == 0)
       printf("\nServer Hostname: %s\n", hostname);
    else
-      perror("gethostname");
+      perror("gethostname()");
+   
    serv_index = -1;
    for(int i = 0; i < 5; i++)
       if(strcmp(hostname, servers[i].c_str()) == 0) {
@@ -68,10 +82,10 @@ int main()
    
    //Initialize servAddr list
    for(int i = -2; i < 3; i++) {
-      loopindex = (serv_index + i) % 5;
+      loopindex = modfive(serv_index + i);
       if(abs(i) == 2){
 	 host = (struct hostent *) gethostbyname(
-		servers[(loopindex - (i / 2)) % 5].c_str());
+	    servers[modfive(loopindex - (i / 2))].c_str());
       } else {
 	 host = (struct hostent *) gethostbyname(servers[loopindex].c_str());
       }
@@ -193,33 +207,42 @@ int main()
 		 receive the message from.
 	       */
 	       case CONN:
+		  std::cout << "Received connection\n";
 		  msg_copy(send_data, recv_data);
 		  if(strcmp(recv_data.msg_dest, "NULL") == 0) {
+		     std::cout << "I am the first server\n";
 		     clientTable[(std::string)recv_data.msg_src] = serv_index;
+		     std::cout << "Added to client table\n"
+			       << "Updated Table:\n";
+		     printTable(clientTable);
 		     send_data.seq_no = 1; //TTL
 		     tempchar.flush();
 		     tempchar << serv_index;
 		     strcpy(send_data.msg_dest, tempchar.str().c_str());
 		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			    (struct sockaddr *)&servAddr[(serv_index + 1) % 5],
+			    (struct sockaddr *)&servAddr[
+			       modfive(serv_index + 1)],
 			    sizeof (struct sockaddr));
 		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			    (struct sockaddr *)&servAddr[(serv_index - 1) % 5],
+			    (struct sockaddr *)&servAddr[
+			       modfive(serv_index - 1)],
 			    sizeof (struct sockaddr));
 		  } else {
 		     sscanf(recv_data.msg_dest, "%d", &tempindex);
 		     clientTable[(std::string)recv_data.msg_src] = tempindex;
 		     if(recv_data.seq_no) {
 			--send_data.seq_no;
-			if(getClientIndex(client_addr) == 
-			   ((serv_index + 1) % 5))
+			if(getClientIndex(client_addr) ==
+			   modfive(serv_index + 1))
 			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			     (struct sockaddr *)&servAddr[(serv_index - 1) % 5],
-			     sizeof (struct sockaddr));
+				  (struct sockaddr *)&servAddr[
+				     modfive(serv_index - 1)],
+				  sizeof (struct sockaddr));
 			else
 			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
-			     (struct sockaddr *)&servAddr[(serv_index + 1) % 5],
-			     sizeof (struct sockaddr));
+				  (struct sockaddr *)&servAddr[
+				     modfive(serv_index + 1)],
+				  sizeof (struct sockaddr));
 		     }
 		  }
 		  break;
@@ -227,7 +250,7 @@ int main()
 		Disconnect:
 		Very similar to the connect case, but each node removes
 		the client from the client list, and then passes the message
-		on to remove the client.
+		on to remove the client in other servers.
 
 		One extra thing here different then the connection case,
 		we need to decide what to do with any messages that were
@@ -242,12 +265,37 @@ int main()
 	       */
 	       case DCON:
 		  clientTable.erase((std::string)recv_data.msg_src);
+		  msg_copy(send_data, recv_data);
 		  if(strcmp(recv_data.msg_dest, "NULL") == 0) {
-		    //missing code
+		     send_data.seq_no = 1; //TTL
+		     tempchar.flush();
+		     tempchar << serv_index;
+		     strcpy(send_data.msg_dest, tempchar.str().c_str());
+		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			    (struct sockaddr *)&servAddr[
+			       modfive(serv_index + 1)],
+			    sizeof (struct sockaddr));
+		     sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+			    (struct sockaddr *)&servAddr[
+			       modfive(serv_index - 1)],
+			    sizeof (struct sockaddr));
 		  } else {
-		    //more missing code
+		     sscanf(recv_data.msg_dest, "%d", &tempindex);
+		     if(recv_data.seq_no) {
+			--send_data.seq_no;
+			if(getClientIndex(client_addr) ==
+			   modfive(serv_index + 1))
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+				  (struct sockaddr *)&servAddr[
+				     modfive(serv_index - 1)],
+				  sizeof (struct sockaddr));
+			else
+			   sendto(sock,(const char *)&send_data,sizeof(_msg),0,
+				  (struct sockaddr *)&servAddr[
+				     modfive(serv_index + 1)],
+				  sizeof (struct sockaddr));
+		     }
 		  }
-		  break;
 	    }
 	 }
       }

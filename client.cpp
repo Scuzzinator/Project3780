@@ -65,7 +65,12 @@ int main()
      Missing code here:
      The client needs to make a CONN message to the server here so the 
      servers can identify the client and add it to the client table
-    */
+   */
+   std::string conndcon = "CONN NULL Blank";
+   format_msg(send_data, client_id, msg_counter, conndcon);
+   sendto(sock,(const char *)&send_data, sizeof(_msg), 0,
+	  (struct sockaddr *)&server_addr,
+	  sizeof(struct sockaddr));
    
    while (1)
    {
