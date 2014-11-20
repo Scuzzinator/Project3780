@@ -228,8 +228,12 @@ int main()
 			       modfive(serv_index - 1)],
 			    sizeof (struct sockaddr));
 		  } else {
+		     std::cout << "I am not the first server\n";
 		     sscanf(recv_data.msg_dest, "%d", &tempindex);
 		     clientTable[(std::string)recv_data.msg_src] = tempindex;
+		     std::cout << "Added to client table\n"
+			       << "Updated Table:\n";
+		     printTable(clientTable);
 		     if(recv_data.seq_no) {
 			--send_data.seq_no;
 			if(getClientIndex(client_addr) ==
